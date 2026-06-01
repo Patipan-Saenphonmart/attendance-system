@@ -1,5 +1,11 @@
 import { useEffect, useState, useRef } from "react";
-import { supabase } from "./lib/supabase";
+import {
+  getStudents,
+  getAttendanceByDate,
+  getAllAttendance,
+  upsertAttendance,
+  deleteAttendance,
+} from "./lib/localDb";
 import html2canvas from "html2canvas";
 import "./index.css";
 
@@ -19,10 +25,7 @@ function App() {
   const downloadRef = useRef(null); // ส่วนดาวน์โหลด (เฉพาะรายชื่อ+สรุปวันนี้)
 
   const loadStudents = async () => {
-    const { data, error } = await supabase
-      .from("students")
-      .select("*")
-      .order("student_code");
+    const { data, error } = await getStudents();
     if (error) return console.error(error);
 
     setStudents(data || []);
@@ -33,15 +36,14 @@ function App() {
   };
 
   const loadAttendance = async (date) => {
-    const { data, error } = await supabase
-      .from("attendance")
-      .select("student_id,status")
-      .eq("date", date);
+    const { data, error } = await getAttendanceByDate(date);
     if (error) return console.error(error);
 
     const statusMap = {};
     const result = { มา: 0, ลา: 0, ขาด: 0 };
     data.forEach((row) => {
+      // ข้าม tombstone record (ถูกลบแล้ว)
+      if (row.status === "__deleted__") return;
       statusMap[row.student_id] = row.status;
       if (result[row.status] !== undefined) result[row.status]++;
     });
@@ -50,13 +52,13 @@ function App() {
   };
 
   const loadTotalStats = async () => {
-    const { data, error } = await supabase
-      .from("attendance")
-      .select("student_id,status,date");
+    const { data, error } = await getAllAttendance();
     if (error) return console.error(error);
 
     const stats = {};
     data.forEach(({ student_id, status, date }) => {
+      // ข้าม tombstone record (ถูกลบแล้ว)
+      if (status === "__deleted__") return;
       if (!stats[student_id])
         stats[student_id] = { ลา: 0, ขาด: 0, details: [] };
       if (status === "ลา" || status === "ขาด") {
@@ -98,9 +100,7 @@ function App() {
           status: tempStatus[s.id]
         }));
 
-      const { error } = await supabase
-        .from("attendance")
-        .upsert(upserts, { onConflict: ["student_id", "date"] });
+      const { error } = await upsertAttendance(upserts);
       if (error) throw error;
 
       await loadAttendance(today);
@@ -113,11 +113,7 @@ function App() {
 
   const handleClearAttendance = async (studentId) => {
     try {
-      const { error } = await supabase
-        .from("attendance")
-        .delete()
-        .eq("student_id", studentId)
-        .eq("date", today);
+      const { error } = await deleteAttendance(studentId, today);
       if (error) throw error;
 
       setTempStatus((prev) => {
