@@ -1,8 +1,9 @@
 // File: src/lib/localDb.js
 // แทนที่ Supabase ด้วยการดึงข้อมูลจาก CSV และบันทึกใน localStorage
 
-const STUDENTS_CSV_PATH = "/data/students.csv";
-const ATTENDANCE_CSV_PATH = "/data/attendance.csv";
+const BASE_URL = import.meta.env.BASE_URL; // '/' in dev, '/attendance-system/' in production
+const STUDENTS_CSV_PATH = `${BASE_URL}data/students.csv`;
+const ATTENDANCE_CSV_PATH = `${BASE_URL}data/attendance.csv`;
 const ATTENDANCE_STORAGE_KEY = "attendance_local";
 
 // -------- CSV Parser --------
